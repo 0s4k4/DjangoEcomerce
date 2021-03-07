@@ -10,7 +10,7 @@ CATEGORY = (
 )
 
 LABEL = (
-    ('N', 'New'),
+    ('N', 'Nuevo'),
     ('BS', 'Best Seller')
 )
 
@@ -50,9 +50,21 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} of {self.item.item_name}"
-
+#devuelve el valor del precio total de cada artículo del producto
     def get_total_item_price(self):
         return self.quantity * self.item.price
+#devuelve el valor del precio total de cada artículo de producto basado en precios con descuento
+    def get_discount_item_price(self):
+        return self.quantity * self.item.discount_price
+#devuelve el valor del precio ahorrado de los descuentos existentes
+    def get_amount_saved(self):
+        return self.get_total_item_price() - self.get_discount_item_price()
+#devuelve qué función se utiliza como determinante de precio (ya sea utilizando el precio original o el precio con descuento)
+    def get_final_price(self):
+        if self.item.discount_price:
+            return self.get_discount_item_price()
+        return self.get_total_item_price()
+
 
  
 #El modelo order almacenará información detallada de los pedidos realizados, pero en esta parte del tutorial no mostraremos la información completa del pedido, agregaremos otro campo en la siguiente parte
@@ -66,4 +78,11 @@ class Order(models.Model):
 
     def __str__(self):
         return self.user.username
+
+#devuelve el valor del precio total de todos los artículos de producto pedidos
+    def get_total_price(self):
+        total = 0
+        for order_item in self.items.all():
+            total += order_item.get_final_price()
+        return total
 
