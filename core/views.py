@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -5,16 +6,17 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import ListView, DetailView, View
 from django.utils import timezone
+from .forms import CheckoutForm
 from .models import (
     Item,
     Order,
-    OrderItem
+    OrderItem,
+    CheckoutAddress,
+    Payment
 )
-from .forms import CheckoutForm
-from .models import (
 
-    CheckoutAddress
-)
+import stripe
+stripe.api_key = settings.STRIPE_KEY
 
 
 # Create your views here.
@@ -178,3 +180,76 @@ class CheckoutView(View):
         except ObjectDoesNotExist:
             messages.error(self.request, "You do not have an order")
             return redirect("core:order-summary")
+
+class PaymentView(View):
+    def get(self, *args, **kwargs):
+        order = Order.objects.get(user=self.request.user, ordered=False)
+        context = {
+            'order': order
+        }
+        return render(self.request, "payment.html", context)
+
+    def post(self, *args, **kwargs):
+        order = Order.objects.get(user=self.request.user, ordered=False)
+        token = self.request.POST.get('stripeToken')
+        amount = int(order.get_total_price() * 100)  #cents
+
+        try:
+            charge = stripe.Charge.create(
+                amount=amount,
+                currency="usd",
+                source=token
+            )
+
+            # create payment
+            payment = Payment()
+            payment.stripe_id = charge['id']
+            payment.user = self.request.user
+            payment.amount = order.get_total_price()
+            payment.save()
+
+            # assign payment to order
+            order.ordered = True
+            order.payment = payment
+            order.save()
+
+            messages.success(self.request, "Success make an order")
+            return redirect('/')
+
+        except stripe.error.CardError as e:
+            body = e.json_body
+            err = body.get('error', {})
+            messages.error(self.request, f"{err.get('message')}")
+            return redirect('/')
+
+        except stripe.error.RateLimitError as e:
+            # Too many requests made to the API too quickly
+            messages.error(self.request, "To many request error")
+            return redirect('/')
+
+        except stripe.error.InvalidRequestError as e:
+            # Invalid parameters were supplied to Stripe's API
+            messages.error(self.request, "Invalid Parameter")
+            return redirect('/')
+
+        except stripe.error.AuthenticationError as e:
+            # Authentication with Stripe's API failed
+            # (maybe you changed API keys recently)
+            messages.error(self.request, "Authentication with stripe failed")
+            return redirect('/')
+
+        except stripe.error.APIConnectionError as e:
+            # Network communication with Stripe failed
+            messages.error(self.request, "Network Error")
+            return redirect('/')
+
+        except stripe.error.StripeError as e:
+            # Display a very generic error to the user, and maybe send
+            # yourself an email
+            messages.error(self.request, "Something went wrong")
+            return redirect('/')
+        
+        except Exception as e:
+            # Something else happened, completely unrelated to Stripe
+            messages.error(self.request, "Not identified error")
+            return redirect('/')
