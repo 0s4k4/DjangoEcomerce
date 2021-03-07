@@ -15,9 +15,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.urls import path
+from .views import (
+    
+    CheckoutView
+)
 
 urlpatterns = [
     path('', include('core.urls',namespace='core')),
     path('admin/', admin.site.urls),
-    path('accounts/', include('django.contrib.auth.urls'))
+    path('accounts/', include('django.contrib.auth.urls')), 
+    path('checkout', CheckoutView.as_view(), name='checkout'),
 ]
