@@ -134,8 +134,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'assets') #directorio de archivos root
 
 #AUTenticacion
 AUTHENTICATION_BACKENDS =(
-    'django.contrib.auth.backends.ModeIBackend',
-    'allauth.account.auth_backends.AuthenticationBackend'
+   'django.contrib.auth.backends.ModelBackend',
+   'allauth.account.auth_backends.AuthenticationBackend'
 )
 SITE_ID=1
 
